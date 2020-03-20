@@ -97,13 +97,13 @@ public final class DexFormat {
      * The largest addressable member is 0xffff, in the "instruction formats" spec as field@CCCC or
      * meth@CCCC.
      */
-    public static final int MAX_MEMBER_IDX = 0xFFFF;
+    public static final int MAX_MEMBER_IDX = 0xFFF; // 0xFFFF
 
     /**
      * Maximum addressable type index.
      * The largest addressable type is 0xffff, in the "instruction formats" spec as type@CCCC.
      */
-    public static final int MAX_TYPE_IDX = 0xFFFF;
+    public static final int MAX_TYPE_IDX = 0xFFF; // 65535
 
     /**
      * Returns the API level corresponding to the given magic number,

@@ -271,7 +271,8 @@ public final class DexMerger {
             int outCount = 0;
             while (!values.isEmpty()) {
                 Map.Entry<T, List<Integer>> first = values.pollFirstEntry();
-                for (Integer dex : first.getValue()) {
+                for (Integer dexInt: first.getValue()) {
+					int dex = dexInt.intValue();
                     updateIndex(offsets[dex], indexMaps[dex], indexes[dex]++, outCount);
                     // Fetch the next value of the dexes we just polled out
                     offsets[dex] = readIntoMap(dexSections[dex], sections[dex],
