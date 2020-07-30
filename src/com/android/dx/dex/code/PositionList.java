@@ -73,7 +73,7 @@ public final class PositionList extends FixedSizeList {
         SourcePosition noInfo = SourcePosition.NO_INFO;
         SourcePosition cur = noInfo;
         int sz = insns.size();
-        PositionList.Entry[] arr = new PositionList.Entry[sz];
+        Entry[] arr = new Entry[sz];
         boolean lastWasTarget = false;
         int at = 0;
 
@@ -96,7 +96,7 @@ public final class PositionList extends FixedSizeList {
             }
 
             cur = pos;
-            arr[at] = new PositionList.Entry(insn.getAddress(), pos);
+            arr[at] = new Entry(insn.getAddress(), pos);
             at++;
 
             lastWasTarget = false;

@@ -37,7 +37,7 @@ public interface TranslationAdvice {
      * using a constant for the last argument
      */
     public boolean hasConstantOperation(Rop opcode,
-            RegisterSpec sourceA, RegisterSpec sourceB);
+                                        RegisterSpec sourceA, RegisterSpec sourceB);
 
     /**
      * Returns true if the translation target requires the sources of the

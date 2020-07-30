@@ -535,7 +535,7 @@ public final class SsaBasicBlock {
     /**
      * Attaches block to an exit block if necessary. If this block
      * is not an exit predecessor or is the exit block, this block does
-     * nothing. For use by {@link com.android.dx.ssa.SsaMethod#makeExitBlock}
+     * nothing. For use by {@link SsaMethod#makeExitBlock}
      *
      * @param exitBlock {@code non-null;} exit block
      */
@@ -985,7 +985,7 @@ public final class SsaBasicBlock {
          * @param v {@code non-null;} block visited
          * @param parent {@code null-ok;} parent node if applicable
          */
-        void visitBlock (SsaBasicBlock v, SsaBasicBlock parent);
+        void visitBlock(SsaBasicBlock v, SsaBasicBlock parent);
     }
 
     /**

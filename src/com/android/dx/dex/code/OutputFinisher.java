@@ -256,14 +256,6 @@ public final class OutputFinisher {
         updateInfo(insn);
     }
 
-    public DalvInsn get(int at) {
-        return insns.get(at);
-    }
-
-    public int size() {
-        return insns.size();
-    }
-
     /**
      * Helper for {@link #add} and {@link #insert},
      * which updates the position and local info flags.

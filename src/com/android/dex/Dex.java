@@ -787,7 +787,7 @@ public final class Dex {
     }
 
     private final class ClassDefIterator implements Iterator<ClassDef> {
-        private final Dex.Section in = open(tableOfContents.classDefs.off);
+        private final Section in = open(tableOfContents.classDefs.off);
         private int count = 0;
 
         @Override

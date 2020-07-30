@@ -243,7 +243,7 @@ public class ClassPathOpener {
     private boolean processArchive(File file) throws IOException {
         ZipFile zip = new ZipFile(file);
 
-        ArrayList<? extends java.util.zip.ZipEntry> entriesList
+        ArrayList<? extends ZipEntry> entriesList
                 = Collections.list(zip.entries());
 
         if (sort) {

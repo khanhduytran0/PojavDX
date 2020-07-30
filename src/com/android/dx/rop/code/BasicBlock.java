@@ -278,6 +278,6 @@ public final class BasicBlock implements LabeledItem {
          * Visits a basic block
          * @param b block visited
          */
-        public void visitBlock (BasicBlock b);
+        public void visitBlock(BasicBlock b);
     }
 }

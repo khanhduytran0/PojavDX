@@ -1189,7 +1189,7 @@ public final class BytecodeArray {
          * @param type {@code non-null;} type the instruction operates on
          */
         public void visitNoArgs(int opcode, int offset, int length,
-                Type type);
+                                Type type);
 
         /**
          * Visits an instruction which has a local variable index argument.
@@ -1203,7 +1203,7 @@ public final class BytecodeArray {
          * for {@code iinc})
          */
         public void visitLocal(int opcode, int offset, int length,
-                int idx, Type type, int value);
+                               int idx, Type type, int value);
 
         /**
          * Visits an instruction which has a (possibly synthetic)
@@ -1230,7 +1230,7 @@ public final class BytecodeArray {
          * (ignore if not)
          */
         public void visitConstant(int opcode, int offset, int length,
-                Constant cst, int value);
+                                  Constant cst, int value);
 
         /**
          * Visits an instruction which has a branch target argument.
@@ -1241,7 +1241,7 @@ public final class BytecodeArray {
          * @param target the absolute (not relative) branch target
          */
         public void visitBranch(int opcode, int offset, int length,
-                int target);
+                                int target);
 
         /**
          * Visits a switch instruction.
@@ -1255,7 +1255,7 @@ public final class BytecodeArray {
          * packed
          */
         public void visitSwitch(int opcode, int offset, int length,
-                SwitchList cases, int padding);
+                                SwitchList cases, int padding);
 
         /**
          * Visits a newarray instruction.
@@ -1267,7 +1267,7 @@ public final class BytecodeArray {
          * for init values
          */
         public void visitNewarray(int offset, int length, CstType type,
-                ArrayList<Constant> initVals);
+                                  ArrayList<Constant> initVals);
 
         /**
          * Set previous bytecode offset
