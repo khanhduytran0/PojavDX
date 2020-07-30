@@ -78,7 +78,6 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.zip.*;
 
 /**
  * Main class for the class file translator.
@@ -177,8 +176,8 @@ public class Main {
      * {@code null-ok;} map of resources to include in the output, or
      * {@code null} if resources are being ignored
      */
-    private OutputResources outputResources;
-	
+    private TreeMap<String, byte[]> outputResources;
+
     /** Library .dex files to merge into the output .dex. */
     private final List<byte[]> libraryDexBuffers = new ArrayList<byte[]>();
 
@@ -197,6 +196,9 @@ public class Main {
      * Used in combination with multi-dex support, to allow outputing
      * a completed dex file, in parallel with continuing processing. */
     private ExecutorService dexOutPool;
+
+    /** Futures for {@code dexOutPool} task. */
+    private List<Future<byte[]>> dexOutputFutures = new ArrayList<Future<byte[]>>();
 
     /** Lock object used to to coordinate dex file rotation, and
      * multi-threaded translation. */
@@ -219,6 +221,8 @@ public class Main {
     private long minimumFileAge = 0;
 
     private Set<String> classesInMainDex = null;
+
+    private List<byte[]> dexOutputArrays = new ArrayList<byte[]>();
 
     private OutputStreamWriter humanOutWriter = null;
 
@@ -369,11 +373,7 @@ public class Main {
         if (outputDex != null) {
             // this array is null if no classes were defined
 
-            try {
-				outputResources.putDex(dexOutPool.submit(new DexWriter(outputDex)).get());
-			} catch (Throwable th) {
-				throw new RuntimeException(th);
-			}
+            dexOutputFutures.add(dexOutPool.submit(new DexWriter(outputDex)));
 
             // Effectively free up the (often massive) DexFile memory.
             outputDex = null;
@@ -383,6 +383,11 @@ public class Main {
             if (!dexOutPool.awaitTermination(600L, TimeUnit.SECONDS)) {
                 throw new RuntimeException("Timed out waiting for dex writer threads.");
             }
+
+            for (Future<byte[]> f : dexOutputFutures) {
+                dexOutputArrays.add(f.get());
+            }
+
         } catch (InterruptedException ex) {
             dexOutPool.shutdownNow();
             throw new RuntimeException("A dex writer thread has been interrupted.");
@@ -392,13 +397,15 @@ public class Main {
         }
 
         if (args.jarOutput) {
+            for (int i = 0; i < dexOutputArrays.size(); i++) {
+                outputResources.put(getDexFileName(i),
+                        dexOutputArrays.get(i));
+            }
+
             if (!createJar(args.outName)) {
                 return 3;
             }
-        } 
-		// multidoj: always multidex, disable below
-		/*
-		else if (args.outName != null) {
+        } else if (args.outName != null) {
             File outDir = new File(args.outName);
             assert outDir.isDirectory();
             for (int i = 0; i < dexOutputArrays.size(); i++) {
@@ -410,7 +417,6 @@ public class Main {
                 }
             }
         }
-		*/
 
         return 0;
     }
@@ -508,12 +514,7 @@ public class Main {
         createDexFile();
 
         if (args.jarOutput) {
-			try {
-				OutputStream out = openOutput(args.outName);
-				outputResources = new OutputResources(out);
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
+            outputResources = new TreeMap<String, byte[]>();
         }
 
         anyFilesProcessed = false;
@@ -539,12 +540,11 @@ public class Main {
                 for (int i = 0; i < fileNames.length; i++) {
                     processOne(fileNames[i], mainPassFilter);
                 }
-				/*
+
                 if (dexOutputFutures.size() > 0) {
                     throw new DexException("Too many classes in " + Arguments.MAIN_DEX_LIST_OPTION
                             + ", main dex capacity exceeded");
                 }
-				*/
 
                 if (args.minimalMainDex) {
                     // start second pass directly in a secondary dex file.
@@ -653,13 +653,9 @@ public class Main {
     private void rotateDexFile() {
         if (outputDex != null) {
             if (dexOutPool != null) {
-                try {
-					outputResources.putDex(dexOutPool.submit(new DexWriter(outputDex)).get());
-				} catch (Throwable th) {
-					throw new RuntimeException(th);
-				}
+                dexOutputFutures.add(dexOutPool.submit(new DexWriter(outputDex)));
             } else {
-                outputResources.putDex(writeDex(outputDex));
+                dexOutputArrays.add(writeDex(outputDex));
             }
         }
 
@@ -904,7 +900,32 @@ public class Main {
          */
 
         try {
-            outputResources.done();
+            Manifest manifest = makeManifest();
+            OutputStream out = openOutput(fileName);
+            JarOutputStream jarOut = new JarOutputStream(out, manifest);
+
+            try {
+                for (Map.Entry<String, byte[]> e :
+                         outputResources.entrySet()) {
+                    String name = e.getKey();
+                    byte[] contents = e.getValue();
+                    JarEntry entry = new JarEntry(name);
+                    int length = contents.length;
+
+                    if (args.verbose) {
+                        context.out.println("writing " + name + "; size " + length + "...");
+                    }
+
+                    entry.setSize(length);
+                    jarOut.putNextEntry(entry);
+                    jarOut.write(contents);
+                    jarOut.closeEntry();
+                }
+            } finally {
+                jarOut.finish();
+                jarOut.flush();
+                closeOutput(out);
+            }
         } catch (Exception ex) {
             if (args.debug) {
                 context.err.println("\ntrouble writing output:");
@@ -926,7 +947,7 @@ public class Main {
      * @return {@code non-null;} the manifest
      */
     private Manifest makeManifest() throws IOException {
-        byte[] manifestBytes = outputResources.getManifest();
+        byte[] manifestBytes = outputResources.get(MANIFEST_NAME);
         Manifest manifest;
         Attributes attribs;
 
@@ -938,7 +959,7 @@ public class Main {
         } else {
             manifest = new Manifest(new ByteArrayInputStream(manifestBytes));
             attribs = manifest.getMainAttributes();
-            outputResources.removeManifest();
+            outputResources.remove(MANIFEST_NAME);
         }
 
         String createdBy = attribs.getValue(CREATED_BY);
@@ -1950,110 +1971,4 @@ public class Main {
             return writeDex(dexFile);
         }
     }
-	
-	/**
-	 * Replace TreeMap class, write file directly.
-	 *
-	 * Save process data in the memory might cause OutOfMemoryError
-	 * in Android because of less RAM. Modify by write to the storage
-	 * directly instead of write to the memory.
-	 *
-	 * @modifier Tran Khanh Duy
-	 */
-	private class OutputResources {
-		/** {@code non-null;} base output of jar file */
-		private OutputStream mDXBaseOut;
-		/** {@code non-null;} main output of jar file */
-		private JarOutputStream mDXOutput;
-		/** {@code non-null;} manifest of jar file */
-		private byte[] mManifestByte;
-		/** classex.dex index counter */
-		private int currentDexIndex = 0;
-
-		/**
-		 * Construct an OutputResources object.
-		 *
-		 * @param baseOut the base output of jar file
-		 */
-		public OutputResources(OutputStream baseOut) throws IOException {
-			mDXBaseOut = baseOut;
-			mDXOutput = new JarOutputStream(baseOut);
-		}
-
-		/**
-		 * Get the manifest byte data.
-		 */
-		public byte[] getManifest() {
-			return mManifestByte;
-		}
-
-		/**
-		 * Put a file to the jar file with check if equals a manifest or not.
-		 *
-		 * @param name the name of the file
-		 * @param content the byte data of the file
-		 */
-		public void put(String name, byte[] content) {
-			if (name.equals(MANIFEST_NAME)) {
-				mManifestByte = content;
-			} else {
-				putNoCheck(name, content);
-			}
-		}
-
-		/**
-		 * Put a dex file to the jar file 
-		 *
-		 * @param baseOut the base output of jar file
-		 */
-		private void putDex(byte[] content) {
-			putNoCheck(getDexFileName(currentDexIndex), content);
-			currentDexIndex++;
-		}
-
-		/**
-		 * Put a file to the jar file without check if equals a manifest or not.
-		 *
-		 * @param name the name of the file
-		 * @param content the byte data of the file
-		 */
-		private void putNoCheck(String name, byte[] contents) {
-			try {
-				JarEntry entry = new JarEntry(name);
-				int length = contents.length;
-
-				if (args.verbose) {
-					context.out.println("writing " + name + "; size " + length + "...");
-				}
-
-				entry.setSize(length);
-				mDXOutput.putNextEntry(entry);
-				mDXOutput.write(contents);
-				mDXOutput.closeEntry();
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-		}
-
-		/**
-		 * Remove the manifest byte data
-		 */
-		public void removeManifest() {
-			mManifestByte = null;
-		}
-
-		/**
-		 * Perform done action
-		 */
-		public void done() throws IOException {
-			if (mManifestByte != null) {
-				putNoCheck(MANIFEST_NAME, mManifestByte);
-			}
-
-
-            mDXOutput.finish();
-			mDXOutput.flush();
-			closeOutput(mDXBaseOut);
-		}
-	}
 }
